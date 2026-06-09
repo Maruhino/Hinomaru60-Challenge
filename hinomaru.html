@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <!-- 【修正】タブに表示されるタイトルを「日本国旗チャレンジ」に変更 -->
+    <title>日本国旗チャレンジ01</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #616161; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .container {
+            position: relative;
+            width: 75vh; 
+            height: 50vh; 
+            cursor: pointer;
+        }
+
+        .flag-frame {
+            background-color: white;
+            height: 100%; 
+            width: 100%; 
+            position: absolute;
+            top: 0;
+            left: 0;
+            overflow: hidden; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            z-index: 1;
+        }
+
+        .circle {
+            background-color: #bc002d; 
+            border-radius: 50%;
+            aspect-ratio: 1 / 1;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px; 
+            height: 2px;
+        }
+
+        .info-text {
+            color: white;
+            font-size: 26px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 1.6;
+            position: absolute;
+            top: calc(100% + 25px); 
+            width: 100%;
+            left: 0;
+            z-index: 2;
+        }
+
+        .blink-text {
+            animation: blinkAnime 1s ease-in-out infinite alternate;
+        }
+
+        @keyframes blinkAnime {
+            0% { opacity: 0.2; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="gameContainer">
+        <div class="flag-frame" id="flagFrame">
+            <div class="circle" id="redCircle"></div>
+        </div>
+        <div id="infoText" class="info-text"></div>
+    </div>
+
+    <script>
+        const circle = document.getElementById('redCircle');
+        const frame = document.getElementById('flagFrame');
+        const infoText = document.getElementById('infoText');
+        const container = document.getElementById('gameContainer');
+
+        let isFirstStart = true; 
+        let isRunning = false;   
+        let animationFrameId;
+        let startTime = 0;
+        let pausedTimeElapsed = 0;
+        let currentPercentage = 0; 
+
+        const duration = 4000; 
+
+        infoText.innerHTML = '<br><br><span class="blink-text">PRESS / TAP TO START</span>';
+
+        function playCustomMelody() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+
+            const bpm = 78;
+            const beat = 60 / bpm; 
+
+            const melody = [
+                { freq: 146.83, dur: beat }, // D3
+                { freq: 130.81, dur: beat }, // C3
+                { freq: 146.83, dur: beat }, // D3
+                { freq: 164.81, dur: beat }, // E3
+                { freq: 196.00, dur: beat }, // G3
+                { freq: 164.81, dur: beat }, // E3
+                { freq: 146.83, dur: beat }  // D3
+            ];
+
+            let time = ctx.currentTime;
+
+            melody.forEach(note => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                osc.type = 'square'; 
+                osc.frequency.setValueAtTime(note.freq, time);
+
+                gain.gain.setValueAtTime(0.15, time); 
+                gain.gain.exponentialRampToValueAtTime(0.001, time + note.dur - 0.03);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                osc.start(time);
+                osc.stop(time + note.dur);
+
+                time += note.dur; 
+            });
+        }
+
+        function updateAnimation() {
+            if (!isRunning) return;
+
+            const currentTime = Date.now();
+            const elapsed = (currentTime - startTime + pausedTimeElapsed) % duration;
+            
+            let progress = elapsed / (duration / 2);
+            if (progress > 1) {
+                progress = 2 - progress;
+            }
+            const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+            const frameHeight = frame.clientHeight;
+            const minSize = 2;
+            const maxSize = frameHeight * 1.6; 
+            const currentSize = minSize + (maxSize - minSize) * ease;
+
+            circle.style.width = `${currentSize}px`;
+            circle.style.height = `${currentSize}px`;
+
+            const standardHinomaruSize = frameHeight * 0.6; 
+            currentPercentage = Math.round((currentSize / standardHinomaruSize) * 100);
+
+            if (infoText.innerHTML.indexOf('PRESS / TAP TO STOP') === -1) {
+                infoText.innerHTML = '<br><br><span class="blink-text">PRESS / TAP TO STOP</span>';
+            }
+
+            animationFrameId = requestAnimationFrame(updateAnimation);
+        }
+
+        function handleAction() {
+            if (isFirstStart) {
+                isFirstStart = false;
+                isRunning = true;
+                startTime = Date.now();
+                updateAnimation();
+            } else {
+                if (isRunning) {
+                    isRunning = false;
+                    cancelAnimationFrame(animationFrameId);
+                    pausedTimeElapsed += Date.now() - startTime;
+
+                    if (currentPercentage >= 95 && currentPercentage <= 105) {
+                        playCustomMelody();
+
+                        if (currentPercentage === 100) {
+                            infoText.innerHTML = `日本国旗です！<br>&nbsp;<br><span class="blink-text">PRESS / TAP TO RESTART</span>`;
+                        } else {
+                            infoText.innerHTML = `ほぼ日本国旗です！<br>日の丸 : 現在の赤丸 = 100 : ${currentPercentage}<br><span class="blink-text">PRESS / TAP TO RESTART</span>`;
+                        }
+                    } else {
+                        infoText.innerHTML = `日本国旗？<br>日の丸 : 現在の赤丸 = 100 : ${currentPercentage}<br><span class="blink-text">PRESS / TAP TO RESTART</span>`;
+                    }
+                } else {
+                    isRunning = true;
+                    startTime = Date.now();
+                    updateAnimation();
+                }
+            }
+        }
+
+        window.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                event.preventDefault(); 
+                handleAction();
+            }
+        });
+
+        window.addEventListener('pointerdown', (event) => {
+            event.preventDefault(); 
+            handleAction();
+        });
+    </script>
+</body>
+</html>
